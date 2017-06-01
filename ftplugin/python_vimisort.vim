@@ -32,18 +32,32 @@ AvailablePython <<EOF
 from __future__ import print_function
 import vim
 from sys import version_info
-
-try:
-    from isort import SortImports
-    isort_imported = True
-except ImportError:
-    isort_imported = False
+import os
+from tempfile import NamedTemporaryFile
+import subprocess as sp
+import shlex
 
 
 # in python2, the vim module uses utf-8 encoded strings
 # in python3, it uses unicodes
 # so we have to do different things in each case
 using_bytes = version_info[0] == 2
+
+
+def isort_file():
+    isort(vim.current.buffer)
+
+
+def isort_visual():
+    isort(vim.current.range)
+
+
+def isort_installed():
+    return run_cmd("isort --version") == 0
+
+
+def run_cmd(cmd):
+    return sp.call(shlex.split(cmd))
 
 
 def count_blank_lines_at_end(lines):
@@ -57,7 +71,7 @@ def count_blank_lines_at_end(lines):
 
 
 def isort(text_range):
-    if not isort_imported:
+    if not isort_installed():
         print("No isort python module detected, you should install it. More info at https://github.com/fisadev/vim-isort")
         return
 
@@ -67,7 +81,17 @@ def isort(text_range):
     if using_bytes:
         old_text = old_text.decode('utf-8')
 
-    new_text = SortImports(file_contents=old_text).output
+    with NamedTemporaryFile(suffix='isort_vim', delete=False) as code_file:
+        code_file.write(old_text)
+        tmp_filename = code_file.name
+
+    new_text = old_text
+    return_value = run_cmd('isort {}'.format(tmp_filename))
+    if return_value == 0:
+        with open(tmp_filename) as code_file:
+            new_text = code_file.read()
+
+    os.unlink(tmp_filename)
 
     if using_bytes:
         new_text = new_text.encode('utf-8')
@@ -79,11 +103,5 @@ def isort(text_range):
         del new_lines[-1]
 
     text_range[:] = new_lines
-
-def isort_file():
-    isort(vim.current.buffer)
-
-def isort_visual():
-    isort(vim.current.range)
 
 EOF
