@@ -52,10 +52,6 @@ def isort_visual():
     isort(vim.current.range)
 
 
-def isort_installed():
-    return run_cmd("isort --version") == 0
-
-
 def run_cmd(cmd):
     return sp.call(shlex.split(cmd))
 
@@ -71,10 +67,6 @@ def count_blank_lines_at_end(lines):
 
 
 def isort(text_range):
-    if not isort_installed():
-        print("No isort python module detected, you should install it. More info at https://github.com/fisadev/vim-isort")
-        return
-
     blank_lines_at_end = count_blank_lines_at_end(text_range)
 
     old_text = '\n'.join(text_range)
@@ -90,6 +82,8 @@ def isort(text_range):
     if return_value == 0:
         with open(tmp_filename) as code_file:
             new_text = code_file.read()
+    else:
+        print("No isort python module detected, you should install it. More info at https://github.com/fisadev/vim-isort")
 
     os.unlink(tmp_filename)
 
@@ -102,6 +96,7 @@ def isort(text_range):
     while new_lines and not new_lines[-1].strip() and blank_lines_at_end < count_blank_lines_at_end(new_lines):
         del new_lines[-1]
 
-    text_range[:] = new_lines
+    if text_range != new_lines:
+        text_range[:] = new_lines
 
 EOF
