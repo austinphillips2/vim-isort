@@ -32,10 +32,9 @@ AvailablePython <<EOF
 from __future__ import print_function
 import vim
 from sys import version_info
-import os
+import os.path
 from tempfile import NamedTemporaryFile
-import subprocess as sp
-import shlex
+import subprocess
 
 
 # in python2, the vim module uses utf-8 encoded strings
@@ -45,15 +44,11 @@ using_bytes = version_info[0] == 2
 
 
 def isort_file():
-    isort(vim.current.buffer)
+    isort(vim.current.buffer, vim.current.buffer.name)
 
 
 def isort_visual():
-    isort(vim.current.range)
-
-
-def run_cmd(cmd):
-    return sp.call(shlex.split(cmd))
+    isort(vim.current.range, vim.current.buffer.name)
 
 
 def count_blank_lines_at_end(lines):
@@ -66,26 +61,31 @@ def count_blank_lines_at_end(lines):
     return blank_lines
 
 
-def isort(text_range):
+def isort(text_range, path):
     blank_lines_at_end = count_blank_lines_at_end(text_range)
 
     old_text = '\n'.join(text_range)
     if using_bytes:
         old_text = old_text.decode('utf-8')
 
-    with NamedTemporaryFile(suffix='isort_vim', delete=False) as code_file:
+    # Place temporary file next to source file so that isort will find approprite
+    # isort configuration for that path.
+    dirname = os.path.dirname(path)
+    with NamedTemporaryFile(suffix='.isort_vim', delete=False, mode='wt', dir=dirname) as code_file:
         code_file.write(old_text)
-        tmp_filename = code_file.name
 
-    new_text = old_text
-    return_value = run_cmd('isort {}'.format(tmp_filename))
-    if return_value == 0:
-        with open(tmp_filename) as code_file:
-            new_text = code_file.read()
-    else:
-        print("No isort python module detected, you should install it. More info at https://github.com/fisadev/vim-isort")
-
-    os.unlink(tmp_filename)
+    tmp_filename = code_file.name
+    try:
+        new_text = old_text
+        try:
+            subprocess.check_output(['isort', tmp_filename], stderr=subprocess.STDOUT)
+            with open(tmp_filename, 'rt') as code_file:
+                new_text = code_file.read()
+        except subprocess.CalledProcessError:
+            print("No isort python module detected, you should install it. More info at https://github.com/fisadev/vim-isort")
+            return
+    finally:
+        os.unlink(tmp_filename)
 
     if using_bytes:
         new_text = new_text.encode('utf-8')
